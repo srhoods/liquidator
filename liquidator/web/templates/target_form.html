@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ t.name or 'New target' }} · Liquidator{% endblock %}
+{% block body %}
+<h1>{{ 'Edit target' if t.id else 'New ' ~ t.type|upper ~ ' target' }}</h1>
+{% if error %}<div class="card err" style="margin-bottom:12px">{{ error }}</div>{% endif %}
+<form method="post" action="{{ '/admin/data/targets/' ~ t.id if t.id else '/admin/data/targets' }}" class="grid" style="max-width:640px">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="type" value="{{ t.type }}">
+  <div class="card grid">
+    <label class="f">Name <input type="text" name="name" value="{{ t.name }}" required></label>
+    {% macro secret(label, field, multiline=False) %}
+      <label class="f">{{ label }} {% if t.secrets_set.get(field) %}<span class="ok">(set — leave blank to keep)</span>{% endif %}
+      {% if multiline %}<textarea name="{{ field }}" rows="4" autocomplete="off" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+      {% else %}<input type="password" name="{{ field }}" autocomplete="off">{% endif %}</label>
+    {% endmacro %}
+    {% if t.type == 's3' %}
+      <label class="f">Endpoint URL (blank for AWS; set for MinIO, Backblaze, Wasabi, …) <input type="text" name="endpoint_url" value="{{ t.cfg.endpoint_url or '' }}" placeholder="https://s3.example.com"></label>
+      <label class="f">Region <input type="text" name="region" value="{{ t.cfg.region or '' }}" placeholder="us-east-1"></label>
+      <label class="f">Bucket <input type="text" name="bucket" value="{{ t.cfg.bucket or '' }}" required></label>
+      <label class="f">Prefix (folder, optional) <input type="text" name="prefix" value="{{ t.cfg.prefix or '' }}" placeholder="liquidator"></label>
+      <label class="f">Access key <input type="text" name="access_key" value="{{ t.cfg.access_key or '' }}" required autocomplete="off"></label>
+      {{ secret('Secret key', 'secret_key') }}
+    {% else %}
+      <div class="row"><label class="f" style="flex:1">Host <input type="text" name="host" value="{{ t.cfg.host or '' }}" required></label>
+        <label class="f">Port <input type="number" name="port" value="{{ t.cfg.port or 22 }}" style="width:90px"></label></div>
+      <label class="f">Username <input type="text" name="username" value="{{ t.cfg.username or '' }}" required autocomplete="off"></label>
+      <label class="f">Remote directory (must exist) <input type="text" name="path" value="{{ t.cfg.path or '' }}" required placeholder="/srv/backups/liquidator"></label>
+      {{ secret('Password', 'password') }}
+      {{ secret('Private key (alternative to password)', 'private_key', True) }}
+      {{ secret('Private key passphrase (if encrypted)', 'key_passphrase') }}
+      {% if t.fingerprint %}<div class="note">Pinned host key: <code>{{ t.fingerprint }}</code>. Verify it matches your server; it is fetched on first save and whenever host/port change.</div>
+      {% else %}<div class="note">On save, the server's host key is fetched and pinned; its fingerprint is then shown here so you can verify it.</div>{% endif %}
+    {% endif %}
+    <label class="f">Keep this many backups on the target <input type="number" name="keep" min="1" max="1000" value="{{ t.keep }}" style="width:100px"></label>
+    <label class="row"><input type="checkbox" name="enabled" {{ 'checked' if t.enabled }}> Enabled (new backups are copied here)</label>
+  </div>
+  <div class="row">
+    <button class="btn">{{ 'Save changes' if t.id else 'Create target' }}</button>
+    <a class="btn sec" href="/admin/data">Back</a>
+    {% if t.id %}<button type="button" class="btn sec" hx-post="/admin/data/targets/{{ t.id }}/test" hx-target="#tres">Test connection</button>
+      <a class="btn sec" href="/admin/data/targets/{{ t.id }}/files">Browse files</a>
+      <button type="submit" formaction="/admin/data/targets/{{ t.id }}/delete" formnovalidate class="btn danger">Delete</button>{% endif %}
+    <span id="tres"></span>
+  </div>
+</form>
+{% endblock %}

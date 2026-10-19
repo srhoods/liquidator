@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Liquidator{% endblock %}</title>
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/app.js" defer></script>
+<script src="/static/vendor/htmx.min.js" defer></script>
+<script src="/static/vendor/chart.min.js" defer></script>
+<script src="/static/vendor/alpine.min.js" defer></script>
+</head>
+<body {% if csrf %}hx-headers='{"X-CSRF-Token": "{{ csrf }}"}'{% endif %}>
+{% if ctx %}
+<header class="top"><div class="wrap">
+  <a class="brand" href="/">Liquidator</a>
+  <nav>
+    <a href="/" class="{{ 'on' if page == 'dashboard' }}">Dashboard</a>
+    <a href="/history" class="{{ 'on' if page == 'history' }}">History</a>
+    {% if ctx.is_admin %}
+    <a href="/admin/feeds" class="{{ 'on' if page == 'feeds' }}">Feeds</a>
+    <a href="/admin/data" class="{{ 'on' if page == 'data' }}">Data</a>
+    <a href="/admin/users" class="{{ 'on' if page == 'users' }}">Users</a>
+    <a href="/admin/audit" class="{{ 'on' if page == 'audit' }}">Audit</a>
+    {% endif %}
+    <a href="/status" class="{{ 'on' if page == 'status' }}">Status</a>
+  </nav>
+  <div class="who">{{ ctx.user.username }} ({{ ctx.user.role }})
+    <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="btn sec small">Sign out</button></form></div>
+</div></header>
+{% endif %}
+<main><div class="wrap">{% block body %}{% endblock %}</div></main>
+</body>
+</html>

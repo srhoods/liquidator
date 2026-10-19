@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}History · Liquidator{% endblock %}
+{% block body %}
+<h1>History</h1>
+<form class="card row" style="margin-bottom:12px; align-items:flex-end" method="get" action="/history">
+  <label class="f">Period
+    <select name="hours">
+      {% for v, l in [("", "All time"), ("1", "Last hour"), ("24", "Last 24h"), ("168", "Last 7d"), ("720", "Last 30d")] %}
+      <option value="{{ v }}" {{ 'selected' if q.get('hours', '') == v }}>{{ l }}</option>{% endfor %}
+    </select></label>
+  <label class="f">Exchange
+    <select name="exchange"><option value="">All</option>
+      {% for e in exchanges %}<option {{ 'selected' if q.get('exchange') == e }}>{{ e }}</option>{% endfor %}</select></label>
+  <label class="f">Asset <input type="text" name="asset" value="{{ q.get('asset', '') }}" placeholder="BTC" style="width:100px"></label>
+  <label class="f">Liquidated
+    <select name="side"><option value="">Both</option>
+      <option value="long" {{ 'selected' if q.get('side') == 'long' }}>Longs</option>
+      <option value="short" {{ 'selected' if q.get('side') == 'short' }}>Shorts</option></select></label>
+  <label class="f">Min USD <input type="number" name="min_usd" min="0" value="{{ q.get('min_usd', '') }}" style="width:110px"></label>
+  <button class="btn">Filter</button>
+  <a class="btn sec" id="csv" href="/history.csv?{{ request.url.query }}">Export CSV</a>
+</form>
+<div class="card scroll">
+  <table>
+    <thead><tr><th>Time (local)</th><th>Exchange</th><th>Symbol</th><th>Asset</th><th>Liquidated</th><th class="num">Price</th><th class="num">Qty</th><th class="num">Size (USD)</th></tr></thead>
+    <tbody id="rows">{% include "history_rows.html" %}</tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Status · Liquidator{% endblock %}
+{% block body %}
+<h1>Status</h1>
+<div class="card" style="margin-bottom:12px">
+  <span class="dot {{ 'up' if worker_alive else 'down' }}"></span>
+  Worker {{ 'is running' if worker_alive else 'has not reported in the last 45 seconds' }}
+</div>
+<div class="card scroll">
+  <table>
+    <thead><tr><th>Collector</th><th>Connection</th><th class="num">Events since start</th><th>Last event</th><th>Last error</th></tr></thead>
+    <tbody>
+    {% for c in collectors %}
+      <tr><td>{{ c.name }}</td>
+        <td><span class="dot {{ 'up' if c.connected and worker_alive else 'down' }}"></span>{{ 'connected' if c.connected and worker_alive else 'down' }}</td>
+        <td class="num">{{ '{:,}'.format(c.messages) }}</td>
+        <td>{% if c.last_message %}<time datetime="{{ c.last_message.isoformat() }}" x-data x-text="new Date($el.getAttribute('datetime')).toLocaleString([], {hour12:false})"></time>{% else %}<span class="muted">none yet</span>{% endif %}</td>
+        <td class="muted">{{ c.last_error or '—' }}</td></tr>
+    {% else %}
+      <tr><td colspan="5" class="muted">No collector has reported yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="note">Large liquidations are rare on quiet markets, so "none yet" for a few minutes is normal. A down connection reconnects automatically with backoff.
+COIN-M (Binance) and inverse (Bybit) markets are especially quiet.</p>
+{% endblock %}

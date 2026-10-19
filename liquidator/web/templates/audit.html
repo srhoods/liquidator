@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Audit · Liquidator{% endblock %}
+{% block body %}
+<h1>Audit log</h1>
+<div class="card scroll"><table>
+  <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Detail</th></tr></thead>
+  <tbody>{% for r in rows %}
+    <tr><td><time datetime="{{ r.ts.isoformat() }}" x-data x-text="new Date($el.getAttribute('datetime')).toLocaleString([], {hour12:false})"></time></td>
+      <td>{{ r.actor }}</td><td>{{ r.action }}</td><td class="muted">{{ r.detail }}</td></tr>
+  {% else %}<tr><td colspan="4" class="muted">Nothing recorded yet.</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="note">Records feed, backup, restore, target and user changes. Secrets are never logged. Showing the latest 300 entries.</p>
+{% endblock %}

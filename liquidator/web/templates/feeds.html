@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Feeds · Liquidator{% endblock %}
+{% block body %}
+<div class="row space" style="margin-bottom:12px">
+  <h1 style="margin:0">Alert feeds</h1>
+  <div class="row">
+    {% for t in ['discord', 'telegram', 'slack', 'webhook'] %}<a class="btn sec" href="/admin/feeds/new?type={{ t }}">+ {{ t|capitalize }}</a>{% endfor %}
+  </div>
+</div>
+<div class="card scroll">
+  <table>
+    <thead><tr><th>Name</th><th>Type</th><th>Mode</th><th>Filter</th><th>Last delivery</th><th></th></tr></thead>
+    <tbody>
+    {% for f in feeds %}
+      {% set d = last[f.id] %}
+      <tr>
+        <td><a href="/admin/feeds/{{ f.id }}">{{ f.name }}</a></td>
+        <td>{{ f.type }}</td>
+        <td>{% if f.mode == 'cascade' %}cascade ≥ ${{ '{:,.0f}'.format(f.mode_cfg.threshold_usd) }} / {{ f.mode_cfg.window_min|int }}m{% else %}every event{% endif %}</td>
+        <td class="muted">≥ ${{ '{:,.0f}'.format(f.filters.min_usd or 0) }}{% if f.filters.exchanges %} · {{ f.filters.exchanges|join(',') }}{% endif %}{% if f.filters.assets %} · {{ f.filters.assets|join(',') }}{% endif %}{% if f.filters.sides %} · {{ f.filters.sides|join(',') }}{% endif %}</td>
+        <td>{% if d %}<span class="{{ 'ok' if d.ok else 'err' }}">{{ 'ok' if d.ok else 'failed' }}</span> <span class="muted"><time datetime="{{ d.ts.isoformat() }}" x-data x-text="new Date($el.getAttribute('datetime')).toLocaleString([], {hour12:false})"></time></span>{% else %}<span class="muted">never</span>{% endif %}</td>
+        <td class="row">
+          <form method="post" action="/admin/feeds/{{ f.id }}/toggle"><input type="hidden" name="csrf" value="{{ csrf }}">
+            <button class="btn small {{ '' if f.enabled else 'sec' }}">{{ 'Enabled' if f.enabled else 'Disabled' }}</button></form>
+          <form method="post" action="/admin/feeds/{{ f.id }}/delete" data-confirm="Delete feed {{ f.name }}?"><input type="hidden" name="csrf" value="{{ csrf }}">
+            <button class="btn danger small">Delete</button></form></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="muted">No feeds yet. Add one with the buttons above.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="note">Feeds are picked up by the worker within about 10 seconds of saving.</p>
+{% endblock %}

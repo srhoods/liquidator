@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Data · Liquidator{% endblock %}
+{% block body %}
+{% macro size(n) %}{% if n >= 1073741824 %}{{ '%.2f'|format(n / 1073741824) }} GB{% elif n >= 1048576 %}{{ '%.1f'|format(n / 1048576) }} MB{% else %}{{ '%.0f'|format(n / 1024) }} KB{% endif %}{% endmacro %}
+<h1>Datastore &amp; backups</h1>
+{% if error %}<div class="card err" style="margin-bottom:12px">{{ error }}</div>{% endif %}
+{{ job_html|safe }}
+
+<div class="grid tiles">
+  <div class="card tile"><div class="label">Database size</div><div class="value">{{ size(stats.size) }}</div></div>
+  <div class="card tile"><div class="label">Stored liquidations</div><div class="value">{{ '{:,}'.format(stats.total) }}</div></div>
+  <div class="card tile"><div class="label">Oldest record</div><div class="value" style="font-size:18px">{% if stats.oldest %}<time datetime="{{ stats.oldest.isoformat() }}" x-data x-text="new Date($el.getAttribute('datetime')).toLocaleString([], {hour12:false})"></time>{% else %}—{% endif %}</div></div>
+</div>
+
+<div class="card scroll" style="margin-bottom:12px">
+  <div class="row space" style="margin-bottom:8px">
+    <h2 style="margin:0">Backups</h2>
+    <div class="row">
+      <form method="post" action="/admin/data/backup"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn">Back up now</button></form>
+      <form method="post" action="/admin/data/backups/upload" enctype="multipart/form-data" class="row">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="file" name="file" accept=".age" required>
+        <button class="btn sec">Upload backup</button></form>
+    </div>
+  </div>
+  <table>
+    <thead><tr><th>File</th><th>Created</th><th class="num">Size</th><th>Kind</th><th>Remote copies</th><th></th></tr></thead>
+    <tbody>
+    {% for b in backups %}
+      <tr>
+        <td>{{ b.filename }}</td>
+        <td><time datetime="{{ b.created_at.isoformat() }}" x-data x-text="new Date($el.getAttribute('datetime')).toLocaleString([], {hour12:false})"></time></td>
+        <td class="num">{{ size(b.size_bytes) }}</td><td>{{ b.kind }}</td>
+        <td class="muted">{% for tid in b.remotes or [] %}{{ tname.get(tid, '?') }}{{ ', ' if not loop.last }}{% else %}—{% endfor %}</td>
+        <td class="row">
+          <a class="btn sec small" href="/admin/data/backups/{{ b.filename }}/download">Download</a>
+          <form method="post" action="/admin/data/backups/{{ b.filename }}/restore" class="row" data-confirm="Restore {{ b.filename }}? Current data will be replaced (a safety backup is taken first)."
+                x-data="{ open: false }">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <button type="button" class="btn sec small" x-show="!open" @click="open = true">Restore…</button>
+            <span x-show="open" class="row" style="gap:4px"><input type="text" name="confirm" placeholder="type the file name to confirm" style="width:260px"><button class="btn danger small">Restore</button></span>
+          </form>
+          <form method="post" action="/admin/data/backups/{{ b.filename }}/delete" data-confirm="Delete {{ b.filename }} from this host?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn danger small">Delete</button></form>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="muted">No backups yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="note">Backups are pg_dump archives encrypted with age (public key <code>{{ public_key }}</code>). A restore replaces <em>all</em> data, including users and feeds, with the contents of the backup.
+  If the backup is older than your account you will be signed out and must sign in with the credentials that existed then.</p>
+  <form method="post" action="/admin/data/backup-key" class="row">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="btn sec small">Download backup key</button>
+    <span class="muted">Keep a copy somewhere safe and separate from this host: without it, backups cannot be decrypted (<code>age -d -i liquidator-backup.key file.dump.age &gt; file.dump</code>).</span>
+  </form>
+</div>
+
+<div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); margin-bottom:12px">
+  <form class="card grid" method="post" action="/admin/data/schedule">
+    <h2>Schedule</h2><input type="hidden" name="csrf" value="{{ csrf }}">
+    <label class="row"><input type="checkbox" name="enabled" {{ 'checked' if schedule.get('enabled') }}> Run scheduled backups</label>
+    <label class="f">Cron (UTC, minute hour day month weekday) <input type="text" name="cron" value="{{ schedule.get('cron', '0 3 * * *') }}"></label>
+    <label class="f">Keep this many local backups <input type="number" name="keep_local" min="1" max="1000" value="{{ keep_local }}" style="width:100px"></label>
+    <div><button class="btn">Save schedule</button></div>
+  </form>
+  <div class="card grid">
+    <h2>Datastore</h2>
+    <form method="post" action="/admin/data/retention" class="row" style="align-items:flex-end">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label class="f">Delete raw events older than (days, 0 = keep forever) <input type="number" name="days" min="0" value="{{ retention }}" style="width:120px"></label>
+      <button class="btn sec">Save</button>
+    </form>
+    <p class="note" style="margin:0">Hourly rollups (used by the 7-day charts) are kept regardless. Pruning runs daily. Take a backup before enabling it.</p>
+    <form method="post" action="/admin/data/vacuum"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn sec small">Vacuum &amp; analyze</button></form>
+  </div>
+</div>
+
+<div class="card scroll" style="margin-bottom:12px">
+  <div class="row space" style="margin-bottom:8px"><h2 style="margin:0">Remote backup targets</h2>
+    <div class="row"><a class="btn sec" href="/admin/data/targets/new?type=s3">+ S3</a><a class="btn sec" href="/admin/data/targets/new?type=sftp">+ SFTP</a></div></div>
+  <table>
+    <thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Keep</th><th></th></tr></thead>
+    <tbody>
+    {% for t in targets %}
+      <tr><td><a href="/admin/data/targets/{{ t.id }}">{{ t.name }}</a></td><td>{{ t.type }}</td><td>{{ 'enabled' if t.enabled else 'disabled' }}</td><td>{{ t.keep }}</td>
+        <td class="row"><a class="btn sec small" href="/admin/data/targets/{{ t.id }}/files">Browse files</a>
+          <button class="btn sec small" hx-post="/admin/data/targets/{{ t.id }}/test" hx-target="next .res">Test</button><span class="res"></span></td></tr>
+    {% else %}
+      <tr><td colspan="5" class="muted">No remote targets. New backups are copied to every enabled target.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card scroll">
+  <h2>Storage by month</h2>
+  <table>
+    <thead><tr><th>Partition</th><th class="num">Rows (approx.)</th><th class="num">Size</th></tr></thead>
+    <tbody>{% for p in stats.partitions %}<tr><td>{{ p.name }}</td><td class="num">{{ '{:,}'.format(p.rows) }}</td><td class="num">{{ size(p.bytes) }}</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endblock %}

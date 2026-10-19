@@ -1,0 +1,23 @@
+[Unit]
+Description=Liquidator worker (collectors, notifier, scheduler)
+After=liquidator-db.service
+Requires=liquidator-db.service
+
+[Container]
+ContainerName=liquidator-worker
+Image=localhost/liquidator:latest
+Network=liquidator.network
+Exec=liquidator worker
+Volume=/var/lib/liquidator/backups:/backups:Z
+Secret=liquidator_db_password,target=db_password
+Secret=liquidator_app_key,target=app_key
+Secret=liquidator_backup_key,target=backup_key
+HealthCmd=liquidator healthcheck
+HealthInterval=1m
+
+[Service]
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

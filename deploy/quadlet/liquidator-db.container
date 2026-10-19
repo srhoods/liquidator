@@ -1,0 +1,20 @@
+[Unit]
+Description=Liquidator PostgreSQL
+
+[Container]
+ContainerName=liquidator-db
+Image=docker.io/library/postgres:16
+Network=liquidator.network
+Volume=/var/lib/liquidator/pgdata:/var/lib/postgresql/data:Z
+Secret=liquidator_db_password,type=env,target=POSTGRES_PASSWORD
+Environment=POSTGRES_USER=liquidator
+Environment=POSTGRES_DB=liquidator
+Exec=postgres -c shared_buffers=256MB -c max_connections=40
+HealthCmd=pg_isready -U liquidator
+HealthInterval=30s
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

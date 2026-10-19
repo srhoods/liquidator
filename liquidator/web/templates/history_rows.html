@@ -1,0 +1,16 @@
+{% for r in rows %}
+<tr class="{{ 'big' if r.notional_usd >= 100000 }}">
+  <td><time datetime="{{ r.ts }}" x-data x-text="new Date($el.getAttribute('datetime')).toLocaleString([], {hour12:false})">{{ r.ts }}</time></td>
+  <td><span class="chip {{ r.exchange }}">{{ r.exchange }}</span></td>
+  <td>{{ r.symbol }}</td><td>{{ r.base_asset }}</td>
+  <td class="{{ r.side }}">{{ '▼ long' if r.side == 'long' else '▲ short' }}</td>
+  <td class="num">{{ r.price }}</td><td class="num">{{ r.qty }}</td>
+  <td class="num">${{ '{:,.0f}'.format(r.notional_usd) }}</td>
+</tr>
+{% else %}
+<tr><td colspan="8" class="muted">No liquidations match these filters.</td></tr>
+{% endfor %}
+{% if next_qs %}
+<tr id="more"><td colspan="8">
+  <button class="btn sec" hx-get="/history?{{ next_qs }}" hx-target="#more" hx-swap="outerHTML">Load more</button></td></tr>
+{% endif %}

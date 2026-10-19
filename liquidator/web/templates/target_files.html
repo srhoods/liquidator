@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ t.name }} files · Liquidator{% endblock %}
+{% block body %}
+{% macro size(n) %}{% if n >= 1048576 %}{{ '%.1f'|format(n / 1048576) }} MB{% else %}{{ '%.0f'|format(n / 1024) }} KB{% endif %}{% endmacro %}
+<div class="row space"><h1>Backups on {{ t.name }}</h1><a class="btn sec" href="/admin/data">Back</a></div>
+{% if error %}<div class="card err">Could not list the target: {{ error }}</div>{% else %}
+<div class="card scroll"><table>
+  <thead><tr><th>File</th><th>Modified</th><th class="num">Size</th><th></th></tr></thead>
+  <tbody>{% for f in files %}
+    <tr><td>{{ f.name }}</td>
+      <td><time datetime="{{ f.mtime.isoformat() }}" x-data x-text="new Date($el.getAttribute('datetime')).toLocaleString([], {hour12:false})"></time></td>
+      <td class="num">{{ size(f.size) }}</td>
+      <td class="row">
+        {% if f.name in local %}<span class="muted">already on this host</span>{% else %}
+        <form method="post" action="/admin/data/targets/{{ t.id }}/files/{{ f.name }}/fetch"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn sec small">Fetch to this host</button></form>{% endif %}
+        <form method="post" action="/admin/data/targets/{{ t.id }}/files/{{ f.name }}/delete" data-confirm="Delete {{ f.name }} from {{ t.name }}?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn danger small">Delete</button></form>
+      </td></tr>
+  {% else %}<tr><td colspan="4" class="muted">No backups on this target yet.</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="note">After fetching, restore from the Data page.</p>
+{% endif %}
+{% endblock %}

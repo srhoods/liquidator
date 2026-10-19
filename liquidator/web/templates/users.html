@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Users · Liquidator{% endblock %}
+{% block body %}
+<h1>Users</h1>
+{% if error %}<div class="card err">{{ error }}</div>{% endif %}
+<div class="card scroll" style="margin-bottom:12px">
+  <table>
+    <thead><tr><th>User</th><th>Role</th><th>Active</th><th>New password</th><th></th></tr></thead>
+    <tbody>
+    {% for u in users %}
+      <tr>
+        <td>{{ u.username }}</td>
+        <td><select name="role" form="uf{{ u.id }}"><option {{ 'selected' if u.role == 'viewer' }}>viewer</option><option {{ 'selected' if u.role == 'admin' }}>admin</option></select></td>
+        <td><input type="checkbox" name="active" form="uf{{ u.id }}" {{ 'checked' if u.active }}></td>
+        <td><input type="password" name="password" form="uf{{ u.id }}" placeholder="leave blank to keep" autocomplete="new-password"></td>
+        <td class="row">
+          <form id="uf{{ u.id }}" method="post" action="/admin/users/{{ u.id }}/update"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn small">Save</button></form>
+          {% if u.id != ctx.user.id %}
+          <form method="post" action="/admin/users/{{ u.id }}/delete" data-confirm="Delete {{ u.username }}?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn danger small">Delete</button></form>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+<form class="card row" style="align-items:flex-end" method="post" action="/admin/users">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label class="f">Username <input type="text" name="username" required></label>
+  <label class="f">Password (10+ chars) <input type="password" name="password" minlength="10" required autocomplete="new-password"></label>
+  <label class="f">Role <select name="role"><option>viewer</option><option>admin</option></select></label>
+  <button class="btn">Add user</button>
+</form>
+{% endblock %}

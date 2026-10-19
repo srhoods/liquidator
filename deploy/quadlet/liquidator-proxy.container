@@ -1,0 +1,19 @@
+[Unit]
+Description=Liquidator HTTPS proxy
+After=liquidator-web.service
+Requires=liquidator-web.service
+
+[Container]
+ContainerName=liquidator-proxy
+Image=docker.io/library/caddy:2
+Network=liquidator.network
+PublishPort=80:80
+PublishPort=443:443
+Volume=/opt/liquidator/deploy/Caddyfile:/etc/caddy/Caddyfile:ro,Z
+Volume=/var/lib/liquidator/caddy:/data:Z
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

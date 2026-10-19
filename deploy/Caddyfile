@@ -1,0 +1,22 @@
+{
+	local_certs
+}
+
+rocky98-1.lab.local:443, :443 {
+	tls internal
+	encode zstd gzip
+	# Public root certificate of Caddy's internal CA, so browsers can be made to trust the portal
+	handle /ca.crt {
+		root * /data/caddy/pki/authorities/local
+		rewrite * /root.crt
+		header Content-Disposition "attachment; filename=liquidator-ca.crt"
+		file_server
+	}
+	handle {
+		reverse_proxy liquidator-web:8000
+	}
+}
+
+:80 {
+	redir https://{host}{uri} permanent
+}

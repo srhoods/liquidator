@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ f.name or 'New feed' }} · Liquidator{% endblock %}
+{% block body %}
+<h1>{{ 'Edit feed' if f.id else 'New ' ~ f.type ~ ' feed' }}</h1>
+{% if error %}<div class="card err" style="margin-bottom:12px">{{ error }}</div>{% endif %}
+{% if request.query_params.get('saved') %}<div class="card ok" style="margin-bottom:12px">Saved.</div>{% endif %}
+<form method="post" action="{{ '/admin/feeds/' ~ f.id if f.id else '/admin/feeds' }}" class="grid" style="max-width:760px"
+      x-data="{ mode: '{{ f.mode }}' }">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="type" value="{{ f.type }}">
+  <div class="card grid">
+    <h2>Destination ({{ f.type }})</h2>
+    <label class="f">Name <input type="text" name="name" value="{{ f.name }}" required maxlength="100"></label>
+    {% if f.type == 'discord' %}
+      <label class="f">Webhook URL {% if f.secrets_set.url %}<span class="ok">(set — leave blank to keep)</span>{% endif %}
+        <input type="password" name="url" autocomplete="off" placeholder="https://discord.com/api/webhooks/…" {{ '' if f.id else 'required' }}></label>
+      <label class="f">Display name (optional) <input type="text" name="username" value="{{ f.cfg.username or '' }}" placeholder="Liquidator"></label>
+    {% elif f.type == 'telegram' %}
+      <label class="f">Bot token {% if f.secrets_set.token %}<span class="ok">(set — leave blank to keep)</span>{% endif %}
+        <input type="password" name="token" autocomplete="off" placeholder="123456:ABC…" {{ '' if f.id else 'required' }}></label>
+      <label class="f">Chat ID <input type="text" name="chat_id" value="{{ f.cfg.chat_id or '' }}" required placeholder="-1001234567890"></label>
+    {% elif f.type == 'slack' %}
+      <label class="f">Incoming webhook URL {% if f.secrets_set.url %}<span class="ok">(set — leave blank to keep)</span>{% endif %}
+        <input type="password" name="url" autocomplete="off" placeholder="https://hooks.slack.com/services/…" {{ '' if f.id else 'required' }}></label>
+    {% else %}
+      <label class="f">URL {% if f.secrets_set.url %}<span class="ok">(set — leave blank to keep)</span>{% endif %}
+        <input type="password" name="url" autocomplete="off" placeholder="https://example.com/hook" {{ '' if f.id else 'required' }}></label>
+      <label class="f">Signing secret (optional, adds an X-Liquidator-Signature HMAC-SHA256 header) {% if f.secrets_set.secret %}<span class="ok">(set — leave blank to keep)</span>{% endif %}
+        <input type="password" name="secret" autocomplete="off"></label>
+    {% endif %}
+    <label class="row"><input type="checkbox" name="enabled" {{ 'checked' if f.enabled }}> Enabled</label>
+  </div>
+
+  <div class="card grid">
+    <h2>Which liquidations</h2>
+    <div class="row">Exchanges:
+      {% for e in exchanges %}<label class="row" style="gap:4px"><input type="checkbox" name="exchanges" value="{{ e }}" {{ 'checked' if e in (f.filters.exchanges or []) }}> {{ e }}</label>{% endfor %}
+      <span class="muted">(none ticked = all)</span></div>
+    <div class="row">Liquidated side:
+      <label class="row" style="gap:4px"><input type="checkbox" name="sides" value="long" {{ 'checked' if 'long' in (f.filters.sides or []) }}> longs</label>
+      <label class="row" style="gap:4px"><input type="checkbox" name="sides" value="short" {{ 'checked' if 'short' in (f.filters.sides or []) }}> shorts</label>
+      <span class="muted">(none ticked = both)</span></div>
+    <label class="f">Assets, comma separated (blank = all) <input type="text" name="assets" value="{{ (f.filters.assets or [])|join(', ') }}" placeholder="BTC, ETH, SOL"></label>
+    <label class="f">Minimum size (USD) <input type="number" name="min_usd" min="0" step="any" value="{{ f.filters.min_usd or 0 }}" style="width:180px"></label>
+  </div>
+
+  <div class="card grid">
+    <h2>When to send</h2>
+    <label class="row"><input type="radio" name="mode" value="event" x-model="mode"> Every matching liquidation (batched into one message per ~1.5 s)</label>
+    <label class="row"><input type="radio" name="mode" value="cascade" x-model="mode"> Cascade alert — one message when the total gets large</label>
+    <div class="row" x-show="mode === 'cascade'" style="align-items:flex-end">
+      <label class="f">Total ≥ (USD) <input type="number" name="threshold_usd" min="1" step="any" value="{{ f.mode_cfg.threshold_usd or 1000000 }}" style="width:150px"></label>
+      <label class="f">within (minutes) <input type="number" name="window_min" min="1" step="any" value="{{ f.mode_cfg.window_min or 5 }}" style="width:100px"></label>
+      <label class="f">then wait (minutes) <input type="number" name="cooldown_min" min="1" step="any" value="{{ f.mode_cfg.cooldown_min or 15 }}" style="width:100px"></label>
+    </div>
+    <label class="f" x-show="mode === 'event'">Max messages per minute <input type="number" name="rate_limit_per_min" min="1" max="600" value="{{ f.rate or 30 }}" style="width:100px"></label>
+  </div>
+
+  <div class="row">
+    <button class="btn">{{ 'Save changes' if f.id else 'Create feed' }}</button>
+    <a class="btn sec" href="/admin/feeds">Back</a>
+    {% if f.id %}<button type="button" class="btn sec" hx-post="/admin/feeds/{{ f.id }}/test" hx-target="#testres">Send test message</button><span id="testres"></span>{% endif %}
+  </div>
+</form>
+
+{% if deliveries %}
+<h2 style="margin-top:24px">Recent deliveries</h2>
+<div class="card scroll"><table>
+  <thead><tr><th>Time</th><th>Result</th><th>Detail</th></tr></thead>
+  <tbody>{% for d in deliveries %}
+    <tr><td><time datetime="{{ d.ts.isoformat() }}" x-data x-text="new Date($el.getAttribute('datetime')).toLocaleString([], {hour12:false})"></time></td>
+      <td class="{{ 'ok' if d.ok else 'err' }}">{{ 'ok' if d.ok else 'failed' }}</td><td class="muted">{{ d.detail }}</td></tr>
+  {% endfor %}</tbody></table></div>
+{% endif %}
+{% endblock %}

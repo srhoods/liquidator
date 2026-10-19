@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Sign in · Liquidator{% endblock %}
+{% block body %}
+<div class="card login">
+  <h1>Liquidator</h1>
+  <form method="post" action="/login">
+    <label class="f">Username <input type="text" name="username" autocomplete="username" autofocus required></label>
+    <label class="f">Password <input type="password" name="password" autocomplete="current-password" required></label>
+    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+    <button class="btn">Sign in</button>
+  </form>
+</div>
+{% endblock %}

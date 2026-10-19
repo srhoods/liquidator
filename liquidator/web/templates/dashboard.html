@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Liquidator{% endblock %}
+{% block body %}
+<div x-data="dashboard()" x-init="init()">
+  <div class="row space" style="margin-bottom:12px">
+    <h1 style="margin:0">Market liquidations</h1>
+    <div class="row">
+      <span class="pill-live"><span class="dot" :class="live ? 'up' : 'down'"></span><span x-text="live ? 'live' : 'reconnecting…'"></span></span>
+      <div class="seg">
+        <template x-for="r in ['1h','4h','24h','7d']"><button :class="{on: range===r}" @click="setRange(r)" x-text="r"></button></template>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid tiles">
+    <div class="card tile"><div class="label">Total liquidated</div>
+      <div class="value" x-text="usd(s.totals.usd)"></div><div class="sub" x-text="s.totals.count.toLocaleString() + ' events'"></div></div>
+    <div class="card tile"><div class="label">Longs vs shorts</div>
+      <div class="value"><span class="long" x-text="usd(s.totals.long_usd)"></span> <span class="muted">/</span> <span class="short" x-text="usd(s.totals.short_usd)"></span></div>
+      <div class="split"><span class="l" :style="'width:' + pct(s.totals.long_usd) + '%'"></span><span class="s" :style="'width:' + (100 - pct(s.totals.long_usd)) + '%'"></span></div></div>
+    <div class="card tile"><div class="label">Largest single</div>
+      <div class="value" x-text="usd(s.totals.biggest)"></div>
+      <div class="sub" x-text="s.largest ? s.largest.exchange + ' ' + s.largest.symbol + ' ' + s.largest.side : '—'"></div></div>
+    <div class="card tile"><div class="label">Busiest asset</div>
+      <div class="value" x-text="s.top_assets.length ? s.top_assets[0].asset : '—'"></div>
+      <div class="sub" x-text="s.top_assets.length ? usd(s.top_assets[0].usd) : ''"></div></div>
+  </div>
+
+  <div class="grid charts">
+    <div class="card"><h2>Liquidated volume by exchange</h2><div class="chartbox"><canvas id="seriesChart"></canvas></div></div>
+    <div class="card"><h2>Top assets</h2><div class="chartbox"><canvas id="assetChart"></canvas></div></div>
+  </div>
+
+  <div class="card">
+    <div class="row space" style="margin-bottom:8px">
+      <h2 style="margin:0">Live tape</h2>
+      <div class="row">
+        {% for e in exchanges %}<label class="row" style="gap:4px"><input type="checkbox" x-model="exch.{{ e }}"> {{ e }}</label>{% endfor %}
+        <label class="row" style="gap:6px">Min $ <input type="number" min="0" step="1000" x-model.number="minUsd" style="width:110px"></label>
+      </div>
+    </div>
+    <div class="scroll"><table>
+      <thead><tr><th>Time</th><th>Exchange</th><th>Symbol</th><th>Liquidated</th><th class="num">Price</th><th class="num">Size (USD)</th></tr></thead>
+      <tbody>
+        <template x-for="e in visible" :key="e.key">
+          <tr :class="{big: e.notional_usd >= 100000}">
+            <td x-text="time(e.ts)"></td>
+            <td><span class="chip" :class="e.exchange" x-text="e.exchange"></span></td>
+            <td x-text="e.symbol"></td>
+            <td :class="e.side"><span x-text="e.side === 'long' ? '▼ long' : '▲ short'"></span></td>
+            <td class="num" x-text="e.price"></td>
+            <td class="num" x-text="usd(e.notional_usd, true)"></td>
+          </tr>
+        </template>
+        <tr x-show="!visible.length"><td colspan="6" class="muted">Waiting for liquidations…</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note">▼ long = a long position was force-sold (red). ▲ short = a short was force-bought (green). Binance publishes only the largest liquidation per symbol per second.</div>
+  </div>
+</div>
+{% endblock %}
