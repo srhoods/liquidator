@@ -1,7 +1,7 @@
 FROM quay.io/rockylinux/rockylinux:10
 LABEL name="Liquidator" \
  vendor="Rhoods_Corp" \
- license="GPLv2"
+ license="MIT"
 RUN dnf install -y python3 python3-pip procps-ng postgresql && dnf clean all
 WORKDIR /app
 COPY pyproject.toml alembic.ini ./
