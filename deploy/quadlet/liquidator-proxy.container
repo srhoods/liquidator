@@ -6,13 +6,12 @@ Requires=liquidator-web.service
 [Container]
 ContainerName=liquidator-proxy
 Image=docker.io/library/caddy:2
-Network=liquidator.network
-PublishPort=80:80
-PublishPort=443:443
+Pod=liquidator.pod
 Volume=/opt/liquidator/deploy/Caddyfile:/etc/caddy/Caddyfile:ro,Z
 Volume=/var/lib/liquidator/caddy:/data:Z
 
 [Service]
+TimeoutStartSec=900
 Restart=always
 
 [Install]

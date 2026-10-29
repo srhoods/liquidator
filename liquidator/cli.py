@@ -30,7 +30,8 @@ def main() -> None:
     sub.add_parser("web")
     sub.add_parser("worker")
     sub.add_parser("migrate")
-    sub.add_parser("healthcheck")
+    hc = sub.add_parser("healthcheck")
+    hc.add_argument("role", nargs="?", default="web", choices=["web", "worker"])
     ca = sub.add_parser("create-admin")
     ca.add_argument("username")
     args = parser.parse_args()
@@ -49,13 +50,14 @@ def main() -> None:
 
         asyncio.run(run())
     elif args.cmd == "healthcheck":
-        try:
-            port = 8000
-            if urllib.request.urlopen(f"http://127.0.0.1:{port}/healthz", timeout=3).status == 200:
-                return
-        except Exception:
-            pass
-        # worker container has no HTTP server: fall back to heartbeat file
+        if args.role == "web":
+            try:
+                if urllib.request.urlopen("http://127.0.0.1:8000/healthz", timeout=3).status == 200:
+                    return
+            except Exception:
+                pass
+            sys.exit(1)
+        # worker has no HTTP server (and shares a network namespace with web): use its heartbeat file
         from pathlib import Path
         import time
 

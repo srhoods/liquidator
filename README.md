@@ -8,11 +8,11 @@ It replaces the old BitMEX Discord bot (BitMEX has ceased operations).
 
 ## Architecture
 
-Four podman containers on an internal network, managed as systemd Quadlets (`deploy/quadlet/`):
+Four containers in one podman **pod** (shared `localhost`, no DNS-enabled network), managed as systemd Quadlets (`deploy/quadlet/`):
 
 | Container | Role |
 |---|---|
-| `liquidator-db` | PostgreSQL 16, **no published port**, data in `/var/lib/liquidator/pgdata` |
+| `liquidator-db` | PostgreSQL 16, reachable only inside the pod (**not published**), data in `/var/lib/liquidator/pgdata` |
 | `liquidator-worker` | exchange collectors, batch writer, hourly rollups, feed dispatcher, backup scheduler |
 | `liquidator-web` | FastAPI UI (HTMX + Alpine + Chart.js, vendored, no CDN), live updates via Postgres `LISTEN/NOTIFY` over WebSocket |
 | `liquidator-proxy` | Caddy, HTTPS on 443 with its internal CA (80 redirects). CA cert at `/ca.crt` |
@@ -26,8 +26,34 @@ Four podman containers on an internal network, managed as systemd Quadlets (`dep
 ```
 `nogit/` (SSH key, old bot) is excluded from rsync, git and the image build.
 
-One-time host setup (already done on `rocky98-1.lab.local`): install `podman`, create `/var/lib/liquidator/{pgdata,backups,caddy}`
-and the podman secrets `liquidator_db_password`, `liquidator_app_key` (Fernet key) and `liquidator_backup_key` (age identity).
+### Deploying to a new host
+
+```
+HOST=root@newhost ./deploy/deploy.sh
+```
+`deploy/bootstrap.sh` runs on the target first and is idempotent: it installs podman (dnf), creates the data
+directories under `/var/lib/liquidator`, and creates the podman secrets `liquidator_db_password`,
+`liquidator_app_key` (Fernet) and `liquidator_backup_key` (age) if they don't exist. Existing ones are never touched.
+Quadlets need these up front, so skipping bootstrap makes `liquidator-db` fail with `status=125`.
+
+Moving an existing installation? A restored database and old backups are only readable with the *original* keys,
+so carry them across (copy them off the old host with `podman secret inspect --showsecret`):
+```
+APP_KEY_FILE=app.key BACKUP_KEY_FILE=backup.key HOST=root@newhost ./deploy/deploy.sh
+```
+Then upload/restore a backup from the Data page. Deploy first with a fresh install, restore second: the database
+password is generated per host and Postgres keeps the one it was initialised with, so never copy a `pgdata`
+directory between hosts without the matching `liquidator_db_password` secret.
+
+If a unit fails to start, `journalctl -u liquidator-db -n 30` shows podman's reason. `status=125` means podman could
+not create the container: a missing secret or bind-mount directory, an unreachable image registry, or a port conflict.
+**Port 53 / Pi-hole:** containers do not use a DNS-enabled podman network, so a DNS server on the host (Pi-hole, dnsmasq, ...) cannot
+conflict with aardvark-dns (`failed to bind udp listener on 10.89.0.1:53`). If the host's own resolver is a loopback address,
+`deploy/configure-dns.sh` finds an address of it that containers can reach and pins it; set `DNS_CANDIDATES="<ip>"` to choose one
+yourself (the resolver must answer queries arriving from the podman bridge, e.g. Pi-hole set to listen on all interfaces).
+Only ports 80 and 443 are published; if something else already uses them, deploy warns and the proxy will not start.
+
+On hosts with firewalld, open the portal with `firewall-cmd --permanent --add-service={http,https} && firewall-cmd --reload`.
 
 Create the first admin:
 ```

@@ -6,13 +6,14 @@ Requires=liquidator-db.service
 [Container]
 ContainerName=liquidator-web
 Image=localhost/liquidator:latest
-Network=liquidator.network
+Pod=liquidator.pod
+Environment=DB_HOST=127.0.0.1
 Exec=liquidator web
 Volume=/var/lib/liquidator/backups:/backups:Z
 Secret=liquidator_db_password,target=db_password
 Secret=liquidator_app_key,target=app_key
 Secret=liquidator_backup_key,target=backup_key
-HealthCmd=liquidator healthcheck
+HealthCmd=liquidator healthcheck web
 HealthInterval=1m
 
 [Service]

@@ -13,7 +13,7 @@ rocky98-1.lab.local:443, :443 {
 		file_server
 	}
 	handle {
-		reverse_proxy liquidator-web:8000
+		reverse_proxy 127.0.0.1:8000
 	}
 }
 

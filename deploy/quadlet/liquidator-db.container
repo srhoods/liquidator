@@ -4,7 +4,7 @@ Description=Liquidator PostgreSQL
 [Container]
 ContainerName=liquidator-db
 Image=docker.io/library/postgres:16
-Network=liquidator.network
+Pod=liquidator.pod
 Volume=/var/lib/liquidator/pgdata:/var/lib/postgresql/data:Z
 Secret=liquidator_db_password,type=env,target=POSTGRES_PASSWORD
 Environment=POSTGRES_USER=liquidator
@@ -14,6 +14,7 @@ HealthCmd=pg_isready -U liquidator
 HealthInterval=30s
 
 [Service]
+TimeoutStartSec=900
 Restart=always
 
 [Install]

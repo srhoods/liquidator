@@ -1,0 +1,7 @@
+# All four containers share one network namespace and talk over localhost. That avoids a DNS-enabled
+# podman network, whose aardvark-dns needs port 53 on the bridge address and so fails on hosts that
+# already run a DNS server (Pi-hole, dnsmasq, ...). Only 80/443 are published; Postgres is not.
+[Pod]
+PodName=liquidator
+PublishPort=80:80
+PublishPort=443:443
