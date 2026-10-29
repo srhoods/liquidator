@@ -63,27 +63,54 @@ def _dump_encrypt(dest: Path) -> tuple[str, int]:
     return w.sha.hexdigest(), w.size
 
 
-def _pipe_decrypted(path: Path, cmd: list[str]) -> None:
-    """Decrypt `path` into the stdin of `cmd`; raises with the command's stderr on failure."""
+class _PipeWriter:
+    """Feeds decrypted bytes to a subprocess. If the process stops reading (pg_restore --list exits after the
+    table of contents; a failing pg_restore exits early) further writes are dropped, so decryption still runs
+    to the end and the whole file's integrity is checked, instead of dying with a broken pipe."""
+
+    def __init__(self, f) -> None:
+        self.f, self.closed = f, False
+
+    def write(self, b: bytes) -> int:
+        if not self.closed:
+            try:
+                self.f.write(b)
+            except (BrokenPipeError, ValueError, OSError):
+                self.closed = True
+        return len(b)
+
+    def flush(self) -> None:
+        if not self.closed:
+            try:
+                self.f.flush()
+            except (BrokenPipeError, ValueError, OSError):
+                self.closed = True
+
+
+def _run_decrypted(path: Path, cmd: list[str]) -> None:
+    """Decrypt `path` into the stdin of `cmd`. The command's own failure (with its stderr) is reported in
+    preference to a pipe error; a real decryption failure (wrong key, corrupt/truncated file) is reported as such."""
     with tempfile.TemporaryFile() as err:
-        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=err, stdout=subprocess.DEVNULL,
-                                env=pg_env())
+        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=err, stdout=subprocess.DEVNULL, env=pg_env())
         dec_err: Optional[Exception] = None
         try:
             with open(path, "rb") as f:
-                crypto.decrypt_stream(f, proc.stdin)
+                crypto.decrypt_stream(f, _PipeWriter(proc.stdin))
         except Exception as exc:
             dec_err = exc
         finally:
             try:
                 proc.stdin.close()
-            except BrokenPipeError:
+            except (BrokenPipeError, OSError):
                 pass
         rc = proc.wait()
         if dec_err:
             raise RuntimeError(f"could not decrypt backup (wrong key or corrupt file): {dec_err}")
         if rc != 0:
-            raise RuntimeError(f"{cmd[0]} failed: " + _tail(err))
+            raise RuntimeError(f"{cmd[0]} rejected the backup (is it a pg_dump -Fc archive?): " + _tail(err))
+
+
+_pipe_decrypted = _run_decrypted  # name kept for callers
 
 
 def verify_file(path: Path) -> None:
@@ -109,27 +136,7 @@ def _restore_swap(path: Path) -> None:
         for d in (scratch, old):
             cur.execute(f'DROP DATABASE IF EXISTS "{d}"')
         cur.execute(f'CREATE DATABASE "{scratch}"')
-        env_db = scratch
-        with tempfile.TemporaryFile() as err:
-            proc = subprocess.Popen(
-                ["pg_restore", "--no-owner", "--no-acl", "--exit-on-error", "-d", env_db],
-                stdin=subprocess.PIPE, stderr=err, stdout=subprocess.DEVNULL, env=pg_env())
-            dec_err = None
-            try:
-                with open(path, "rb") as f:
-                    crypto.decrypt_stream(f, proc.stdin)
-            except Exception as exc:
-                dec_err = exc
-            finally:
-                try:
-                    proc.stdin.close()
-                except BrokenPipeError:
-                    pass
-            rc = proc.wait()
-            if dec_err:
-                raise RuntimeError(f"could not decrypt backup: {dec_err}")
-            if rc != 0:
-                raise RuntimeError("pg_restore failed: " + _tail(err))
+        _run_decrypted(path, ["pg_restore", "--no-owner", "--no-acl", "--exit-on-error", "-d", scratch])
         # swap
         cur.execute(f'ALTER DATABASE "{live}" ALLOW_CONNECTIONS false')
         try:
